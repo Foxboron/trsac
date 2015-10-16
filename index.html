@@ -21,6 +21,15 @@
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
 #endif
+
+#ifdef REFLECTION_CUBE
+    uniform mat4 reflectionViewMatrix;
+
+    void main(void)
+    {
+        gl_Position = projectionMatrix * reflectionViewMatrix * modelMatrix * vec4(position, 1.0);
+    }
+#endif
 </script>
 
 <script type="application/fragmentShader" id="fragmentShader">
@@ -45,12 +54,19 @@
         gl_FragColor = f * 0.4 * vec4(1,1,1,1);
     }
 #endif
+
+#ifdef REFLECTION_CUBE
+    void main(void)
+    {
+        gl_FragColor = vec4(0.5,0,0.9,0.5);
+    }
+#endif
     </script>
 
 <script>
     var Demo = (function () {
         var wallEffect = true;
-        var mirrorEffect = false;
+        var mirrorEffect = true;
 
         var BPM = 120,
             ROWS_PER_BEAT = 4,
@@ -67,21 +83,33 @@
             audio = new Audio(),
             renderer = new THREE.WebGLRenderer(),
             camera = new THREE.PerspectiveCamera(FOV, WIDTH / HEIGHT),
-            scene = new THREE.Scene(),
-            wallShader = null;
+            scene = new THREE.Scene();
 
         renderer.setSize(WIDTH, HEIGHT);
         scene.add(camera);
         document.body.appendChild(renderer.domElement);
 
+        var vertexShaderSrc = document.getElementById( 'vertexShader' ).textContent;
+        var fragShaderSrc = document.getElementById( 'fragmentShader' ).textContent;
+
+        var reflectionShader = new THREE.ShaderMaterial(
+        {
+            uniforms: {
+                reflectionViewMatrix: { type: "m4", value: new THREE.Matrix4() }
+            },
+            defines: { REFLECTION_CUBE: true },
+            vertexShader: vertexShaderSrc,
+            fragmentShader: fragShaderSrc
+        });
+
         var diameterWalls = 100;
-        wallShader = new THREE.ShaderMaterial({
+        var wallShader = new THREE.ShaderMaterial({
             uniforms: {
                 time: { type: "f", value: 1.0 },
                 dir: { type: "v2", value: new THREE.Vector3() }
             },
             defines: {PASS_THROUGH: true, GRID_ISH: true},
-            vertexShader: document.getElementById( 'vertexShader' ).textContent,
+            vertexShader: vertexShaderSrc,
             fragmentShader: document.getElementById( 'fragmentShader' ).textContent
         });
 
@@ -114,8 +142,8 @@
         wallBot.position.y = -diameterWalls*0.5;
 
         var cube = new THREE.Mesh(
-                new THREE.BoxGeometry(1.0, 1.0, 1.0, 1, 1, 1),
-                wallShader);
+                new THREE.BoxGeometry(10, 10, 10, 1, 1, 1),
+                reflectionShader);
 
         if (demoMode) {
             syncDevice.setConfig({'rocketXML':'cube.rocket'});
@@ -137,7 +165,10 @@
             clearB,
             fov,
             dirX,
-            dirY;
+            dirY,
+            mirrorX,
+            mirrorY,
+            mirrorZ;
 
         function onSyncReady() {
             
@@ -149,6 +180,9 @@
             fov = syncDevice.getTrack('FOV');
             dirX = syncDevice.getTrack("dirX");
             dirY = syncDevice.getTrack("dirY");
+            mirrorX = syncDevice.getTrack("mirrorX");
+            mirrorY = syncDevice.getTrack("mirrorY");
+            mirrorZ = syncDevice.getTrack("mirrorZ");
 
             prepareAudio();
         }
@@ -228,7 +262,10 @@
             }
 
             if(mirrorEffect) {
-                cube.position.y = Math.sin(time);
+                reflectionShader.uniforms.reflectionViewMatrix.value = camera.matrixWorldInverse;
+
+                cube.position.z = Math.sin(time)*10;
+                cube.position.y = Math.sin(time)*10;
                 scene.add(cube);
             }
             // Normal
@@ -236,15 +273,27 @@
 
             // Mirroring
             if(mirrorEffect) {
-                camera.scale.y = -1.0;
-                renderer.setFaceCulling(THREE.CullFaceFront);
+                var reflMat = new THREE.Matrix4();
+
+                var mirX = mirrorX.getValue(row) || 0, mirY = mirrorY.getValue(row)|| 0, mirZ = mirrorZ.getValue(row)|| 0;
+                var mir = new THREE.Vector3(mirX, mirY, mirZ);
+                mir.normalize();
+                reflMat.set(1 - 2*mir.x*mir.x, -2*mir.x*mir.y, -2*mir.x*mir.z, 0,
+                            -2*mir.y*mir.x, 1 - 2*mir.y*mir.y, -2*mir.y*mir.z, 0,
+                            -2*mir.z*mir.x, -2*mir.z*mir.y, 1 - 2*mir.z*mir.z, 0,
+                            0, 0, 0, 1);
+
+                reflectionShader.uniforms.reflectionViewMatrix.value = reflMat.getInverse(reflMat.multiply(camera.matrixWorld));
+
+                renderer.setFaceCulling(THREE.CullFaceNone);
                 renderer.autoClearColor = false;
+                renderer.autoClearDepth = false;
 
                 renderer.render(scene, camera);
 
-                camera.scale.y = 1.0;
-                renderer.setFaceCulling(THREE.CullFaceBack);
+                //renderer.setFaceCulling(THREE.CullFaceBack);
                 renderer.autoClearColor = true;
+                renderer.autoClearDepth = true;
             }
         }
     }());
