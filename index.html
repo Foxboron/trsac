@@ -9,6 +9,16 @@
 <body>
 
 <script src="three.min.js"></script>
+<script src="shaders/CopyShader.js"></script>
+<script src="shaders/DotScreenShader.js"></script>
+<script src="shaders/RGBShiftShader.js"></script>
+<script src="shaders/ConvolutionShader.js"></script>
+
+<script src="postprocessing/EffectComposer.js"></script>
+<script src="postprocessing/RenderPass.js"></script>
+<script src="postprocessing/MaskPass.js"></script>
+<script src="postprocessing/ShaderPass.js"></script>
+<script src="postprocessing/bloomPass.js"></script>
 <script src="jsRocket.min.js"></script>
 
 <script type="application/vertexShader" id="vertexShader">
@@ -23,11 +33,18 @@
 #endif
 
 #ifdef REFLECTION_CUBE
+    varying vec3 vertNormal;
+    varying vec3 vertPosition;
+
     uniform mat4 reflectionViewMatrix;
 
     void main(void)
     {
-        gl_Position = projectionMatrix * reflectionViewMatrix * modelMatrix * vec4(position, 1.0);
+        vertNormal = normalMatrix * normal;
+        vec4 vertPos = reflectionViewMatrix * modelMatrix * vec4(position, 1.0);
+
+        vertPosition = vertPos.xyz;
+        gl_Position = projectionMatrix * vertPos;
     }
 #endif
 </script>
@@ -35,6 +52,7 @@
 <script type="application/fragmentShader" id="fragmentShader">
 #ifdef GRID_ISH
     varying vec2 vertUV;
+
     uniform float time;
     uniform vec2 dir;
 
@@ -56,9 +74,25 @@
 #endif
 
 #ifdef REFLECTION_CUBE
+    varying vec3 vertNormal;
+    varying vec3 vertPosition;
+
+    uniform vec3 pointLightColor[MAX_POINT_LIGHTS];
+    uniform vec3 pointLightPosition[MAX_POINT_LIGHTS];
+    uniform float pointLightDistance[MAX_POINT_LIGHTS];
+
     void main(void)
     {
-        gl_FragColor = vec4(0.5,0,0.9,0.5);
+        vec4 addedLights = vec4(0.0,0.0,0.0, 1.0);
+        for(int l = 0; l < MAX_POINT_LIGHTS; l++) {
+            vec3 lightDirection = normalize(vertPosition
+                                  -pointLightPosition[l]);
+            addedLights.rgb += clamp(dot(-lightDirection,
+                                     normalize(vertNormal)), 0.0, 1.0)
+                               * pointLightColor[l];
+        }
+
+        gl_FragColor = addedLights * vec4(0.5,0,0.9,0.5);
     }
 #endif
     </script>
@@ -89,20 +123,39 @@
         scene.add(camera);
         document.body.appendChild(renderer.domElement);
 
+        renderer.autoClear = false;
+        var effectBloom = new THREE.BloomPass(1, 25, 5);
+        var copyPass = new THREE.ShaderPass(THREE.CopyShader);
+        copyPass.renderToScreen = true;
+        var composer = new THREE.EffectComposer(renderer);
+        composer.addPass(new THREE.RenderPass(scene, camera));
+        composer.addPass(effectBloom);
+        composer.addPass(copyPass);
+
         var vertexShaderSrc = document.getElementById( 'vertexShader' ).textContent;
         var fragShaderSrc = document.getElementById( 'fragmentShader' ).textContent;
 
+        var light = new THREE.PointLight(0xffffff, 1.0);
+        light.position.set(40.0,40.0,0.0);
+        scene.add(light);
+
         var reflectionShader = new THREE.ShaderMaterial(
         {
-            uniforms: {
-                reflectionViewMatrix: { type: "m4", value: new THREE.Matrix4() }
-            },
+            uniforms:
+                THREE.UniformsUtils.merge([
+                    THREE.UniformsLib['lights'],
+                    {
+                        reflectionViewMatrix: { type: "m4", value: new THREE.Matrix4() }
+                    }
+                ]),
             defines: { REFLECTION_CUBE: true },
             vertexShader: vertexShaderSrc,
-            fragmentShader: fragShaderSrc
+            fragmentShader: fragShaderSrc,
+            lights: true
         });
 
         var diameterWalls = 100;
+
         var wallShader = new THREE.ShaderMaterial({
             uniforms: {
                 time: { type: "f", value: 1.0 },
@@ -269,10 +322,11 @@
                 scene.add(cube);
             }
             // Normal
-            renderer.render(scene, camera);
+            renderer.clear();
+            composer.render(scene, camera);
 
             // Mirroring
-            if(mirrorEffect) {
+            /*if(mirrorEffect) {
                 var reflMat = new THREE.Matrix4();
 
                 var mirX = mirrorX.getValue(row) || 0, mirY = mirrorY.getValue(row)|| 0, mirZ = mirrorZ.getValue(row)|| 0;
@@ -294,7 +348,7 @@
                 //renderer.setFaceCulling(THREE.CullFaceBack);
                 renderer.autoClearColor = true;
                 renderer.autoClearDepth = true;
-            }
+            }*/
         }
     }());
 </script>
