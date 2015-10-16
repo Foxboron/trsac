@@ -1,0 +1,39 @@
+<sync rows="2250">
+	<tracks>
+		<track name="clearR"/>
+		<track name="clearG"/>
+		<track name="clearB"/>
+		<track name="rotation"/>
+		<track name="distance">
+			<key row="0" value="50" interpolation="0"/>
+			<key row="112" value="500" interpolation="3"/>
+			<key row="136" value="50" interpolation="0"/>
+		</track>
+		<track name="FOV">
+			<key row="0" value="45" interpolation="0"/>
+			<key row="19" value="45" interpolation="1"/>
+			<key row="24" value="70" interpolation="0"/>
+			<key row="112" value="70" interpolation="1"/>
+			<key row="136" value="150" interpolation="0"/>
+		</track>
+		<track name="dir"/>
+		<track name="dirX">
+			<key row="0" value="0" interpolation="0"/>
+			<key row="57" value="0" interpolation="1"/>
+			<key row="64" value="1" interpolation="0"/>
+			<key row="81" value="1" interpolation="1"/>
+			<key row="88" value="0" interpolation="0"/>
+		</track>
+		<track name="dirY">
+			<key row="0" value="1" interpolation="0"/>
+			<key row="21" value="1" interpolation="1"/>
+			<key row="24" value="-1" interpolation="1"/>
+			<key row="32" value="1" interpolation="0"/>
+			<key row="57" value="1" interpolation="1"/>
+			<key row="64" value="0" interpolation="0"/>
+			<key row="81" value="0" interpolation="1"/>
+			<key row="88" value="1" interpolation="0"/>
+		</track>
+	</tracks>
+	<bookmarks/>
+</sync>

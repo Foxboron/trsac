@@ -1,0 +1,251 @@
+<html>
+<head>
+    <style>
+        html, body{
+            margin:0;
+        }
+    </style>
+</head>
+<body>
+
+<script src="three.min.js"></script>
+<script src="jsRocket.min.js"></script>
+
+<script type="application/vertexShader" id="vertexShader">
+#ifdef PASS_THROUGH
+    varying vec2 vertUV;
+
+    void main(void)
+    {
+        vertUV = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+#endif
+</script>
+
+<script type="application/fragmentShader" id="fragmentShader">
+#ifdef GRID_ISH
+    varying vec2 vertUV;
+    uniform float time;
+    uniform vec2 dir;
+
+    void main(void)
+    {
+        vec2 uv = (vertUV - 0.5) * 2.;
+        uv *= 2.;
+        float f = 0.;
+
+        f += clamp(pow(sin(uv.x * 3.145 * 2. + dir.x * time), 15.), 0., 1.);
+        f += clamp(pow(sin(uv.y * 3.145 * 2. + dir.y * time), 15.), 0., 1.);
+        f += clamp(pow(sin(uv.x * 3.145 * 10. + dir.x * time), 15.), 0., 1.);
+        f += clamp(pow(sin(uv.y * 3.145 * 10. + dir.y * time), 15.), 0., 1.);
+        //f += clamp(pow(sin(uv.x * 3.145 * 50.), 15.), 0., 1.);
+       // f += clamp(pow(sin(uv.y * 3.145 * 50.), 15.), 0., 1.);
+
+        gl_FragColor = f * 0.4 * vec4(1,1,1,1);
+    }
+#endif
+    </script>
+
+<script>
+    var Demo = (function () {
+        var wallEffect = true;
+        var mirrorEffect = false;
+
+        var BPM = 120,
+            ROWS_PER_BEAT = 4,
+            ROW_RATE = BPM / 60 * ROWS_PER_BEAT;
+            
+        var demoMode = false, //Set to true for preview
+            syncDevice = new JSRocket.SyncDevice(),
+            row = 0;
+
+        //THREE variables
+        var WIDTH = document.body.clientWidth,
+            HEIGHT = document.body.clientHeight,
+            FOV = 50,
+            audio = new Audio(),
+            renderer = new THREE.WebGLRenderer(),
+            camera = new THREE.PerspectiveCamera(FOV, WIDTH / HEIGHT),
+            scene = new THREE.Scene(),
+            wallShader = null;
+
+        renderer.setSize(WIDTH, HEIGHT);
+        scene.add(camera);
+        document.body.appendChild(renderer.domElement);
+
+        var diameterWalls = 100;
+        wallShader = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { type: "f", value: 1.0 },
+                dir: { type: "v2", value: new THREE.Vector3() }
+            },
+            defines: {PASS_THROUGH: true, GRID_ISH: true},
+            vertexShader: document.getElementById( 'vertexShader' ).textContent,
+            fragmentShader: document.getElementById( 'fragmentShader' ).textContent
+        });
+
+        var wallLeft = new THREE.Mesh(
+                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1), wallShader);
+        wallLeft.position.z = -diameterWalls*0.5;
+
+        var wallRight = new THREE.Mesh(
+                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1),
+                wallShader);
+        wallRight.position.z = diameterWalls*0.5;
+
+        var wallBack = new THREE.Mesh(
+                new THREE.BoxGeometry(1, diameterWalls, diameterWalls, 1, 1, 1),
+                wallShader);
+        wallBack.position.x = -diameterWalls*0.5;
+
+        var wallTop = new THREE.Mesh(
+                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1),
+                wallShader);
+        wallTop.rotation.x = THREE.Math.degToRad(90);
+        wallTop.rotation.z = THREE.Math.degToRad(90);
+        wallTop.position.y = diameterWalls*0.5;
+
+        var wallBot = new THREE.Mesh(
+                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1),
+                wallShader);
+        wallBot.rotation.x = THREE.Math.degToRad(90);
+        wallBot.rotation.z = THREE.Math.degToRad(90);
+        wallBot.position.y = -diameterWalls*0.5;
+
+        var cube = new THREE.Mesh(
+                new THREE.BoxGeometry(1.0, 1.0, 1.0, 1, 1, 1),
+                wallShader);
+
+        if (demoMode) {
+            syncDevice.setConfig({'rocketXML':'cube.rocket'});
+            syncDevice.init("demo");
+        } else {
+            //_syncDevice.setConfig({'socketURL':'ws://192.168.0.100:1338'});
+            syncDevice.init();
+        }
+
+        syncDevice.on('ready', onSyncReady);
+        syncDevice.on('update', onSyncUpdate);
+        syncDevice.on('play', onPlay);
+        syncDevice.on('pause', onPause);
+
+        var cameraRotation,
+            cameraDistance,
+            clearR,
+            clearG,
+            clearB,
+            fov,
+            dirX,
+            dirY;
+
+        function onSyncReady() {
+            
+            clearR = syncDevice.getTrack('clearR');
+            clearG = syncDevice.getTrack('clearG');
+            clearB = syncDevice.getTrack('clearB');
+            cameraRotation = syncDevice.getTrack('rotation');
+            cameraDistance = syncDevice.getTrack('distance');
+            fov = syncDevice.getTrack('FOV');
+            dirX = syncDevice.getTrack("dirX");
+            dirY = syncDevice.getTrack("dirY");
+
+            prepareAudio();
+        }
+
+        function prepareAudio() {
+            audio.src = "december.mp3";
+            audio.load();
+            audio.preload = true;
+            audio.addEventListener('canplay', onAudioReady);
+        }
+        
+        function onAudioReady() {
+            if(demoMode) { 
+                render();
+                audio.play();
+            } else {
+                audio.pause();
+                audio.currentTime = row / ROW_RATE;
+            }
+        }
+
+        function onSyncUpdate(row) {
+
+            if (!isNaN(row)) {
+                row = row;
+                audio.currentTime = row / ROW_RATE;
+            }
+            render();
+        }
+
+        var isPlaying = false;
+        function onPlay() {
+            isPlaying = true;
+            audio.play();
+            render();
+        }
+
+        function onPause() {
+            isPlaying = false;
+            row = audio.currentTime * ROW_RATE;
+            audio.pause();
+        }
+
+        function render() {
+            if(isPlaying) {
+                row = audio.currentTime * ROW_RATE;
+                syncDevice.update(row);
+                window.requestAnimationFrame(render);
+            }
+
+            var time = audio.currentTime;
+            wallShader.uniforms.time.value = time;
+            wallShader.uniforms.dir.value = new THREE.Vector2(dirX.getValue(row), dirY.getValue(row));
+
+            var rot = (cameraRotation.getValue(row) || 0) / 180 * Math.PI,
+                color = new THREE.Color();
+
+            camera.fov = (fov.getValue(row) || FOV);
+            camera.updateProjectionMatrix();
+
+            camera.position.x = Math.cos(rot) * (cameraDistance.getValue(row) || 0);
+            camera.position.z = Math.sin(rot) * (cameraDistance.getValue(row) || 0);
+            camera.lookAt(scene.position);
+
+            color.setRGB((clearR.getValue(row) || 0) / 255,
+                        (clearG.getValue(row) || 0) / 255,
+                        (clearB.getValue(row) || 0) / 255);
+            renderer.setClearColor(color);
+
+            if(wallEffect) {
+                scene.add(wallLeft);
+                scene.add(wallRight);
+                scene.add(wallBack);
+                scene.add(wallTop);
+                scene.add(wallBot);
+            }
+
+            if(mirrorEffect) {
+                cube.position.y = Math.sin(time);
+                scene.add(cube);
+            }
+            // Normal
+            renderer.render(scene, camera);
+
+            // Mirroring
+            if(mirrorEffect) {
+                camera.scale.y = -1.0;
+                renderer.setFaceCulling(THREE.CullFaceFront);
+                renderer.autoClearColor = false;
+
+                renderer.render(scene, camera);
+
+                camera.scale.y = 1.0;
+                renderer.setFaceCulling(THREE.CullFaceBack);
+                renderer.autoClearColor = true;
+            }
+        }
+    }());
+</script>
+</body>
