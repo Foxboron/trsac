@@ -10,9 +10,9 @@
 
 <script src="three.min.js"></script>
 <script src="shaders/CopyShader.js"></script>
-<script src="shaders/DotScreenShader.js"></script>
-<script src="shaders/RGBShiftShader.js"></script>
+<script src="shaders/ColorCorrectionShader.js"></script>
 <script src="shaders/ConvolutionShader.js"></script>
+<script src="shaders/RGBShiftShader.js"></script>
 
 <script src="postprocessing/EffectComposer.js"></script>
 <script src="postprocessing/RenderPass.js"></script>
@@ -69,7 +69,7 @@
         //f += clamp(pow(sin(uv.x * 3.145 * 50.), 15.), 0., 1.);
        // f += clamp(pow(sin(uv.y * 3.145 * 50.), 15.), 0., 1.);
 
-        gl_FragColor = f * 0.4 * vec4(1,1,1,1);
+        gl_FragColor = f * 0.2 * vec4(1,1,1,1);
     }
 #endif
 
@@ -98,14 +98,36 @@
     </script>
 
 <script>
+    Math.seededRandom = function(max, min) {
+        max = max || 1;
+        min = min || 0;
+
+        Math.seed = (Math.seed * 9301 + 49297) % 233280;
+        var rnd = Math.seed / 233280;
+
+        return min + rnd * (max - min);
+    };
+
+    Math.clamp = function(number, min, max) {
+        return Math.max(min, Math.min(number, max));
+    };
+
+    Math.seed = 1341;
+
     var Demo = (function () {
-        var wallEffect = true;
-        var mirrorEffect = true;
+
+        var circleEffect = false;
+        var superSampling = true; // TODO: Make support for super sampling
+        var wallEffect = false;
+        var mirrorEffect = false;
+        var cubeClapEffect = false;
+
+        var numCircleSpheres = 0;
 
         var BPM = 120,
             ROWS_PER_BEAT = 4,
             ROW_RATE = BPM / 60 * ROWS_PER_BEAT;
-            
+
         var demoMode = false, //Set to true for preview
             syncDevice = new JSRocket.SyncDevice(),
             row = 0;
@@ -120,16 +142,24 @@
             scene = new THREE.Scene();
 
         renderer.setSize(WIDTH, HEIGHT);
+        renderer.antialias = true;
         scene.add(camera);
         document.body.appendChild(renderer.domElement);
 
         renderer.autoClear = false;
-        var effectBloom = new THREE.BloomPass(1, 25, 5);
+        var particleScene = new THREE.Scene();
+        /*var particlePass = new THREE.RenderPass(particleScene, camera);
+        particlePass.renderToScreen = true;*/
+        var effectBloom = new THREE.BloomPass(0.8, 20, 5);
+        var colorCorrection = new THREE.ShaderPass(THREE.ColorCorrectionShader);
+        var rgbShift = new THREE.ShaderPass(THREE.RGBShiftShader);
         var copyPass = new THREE.ShaderPass(THREE.CopyShader);
         copyPass.renderToScreen = true;
         var composer = new THREE.EffectComposer(renderer);
         composer.addPass(new THREE.RenderPass(scene, camera));
         composer.addPass(effectBloom);
+        composer.addPass(rgbShift);
+        composer.addPass(colorCorrection);
         composer.addPass(copyPass);
 
         var vertexShaderSrc = document.getElementById( 'vertexShader' ).textContent;
@@ -156,7 +186,7 @@
 
         var diameterWalls = 100;
 
-        var wallShader = new THREE.ShaderMaterial({
+        var wallShader = new THREE.MeshLambertMaterial({color: new THREE.Color(0.3,0.3,0.3)});/*new THREE.ShaderMaterial({
             uniforms: {
                 time: { type: "f", value: 1.0 },
                 dir: { type: "v2", value: new THREE.Vector3() }
@@ -164,21 +194,21 @@
             defines: {PASS_THROUGH: true, GRID_ISH: true},
             vertexShader: vertexShaderSrc,
             fragmentShader: document.getElementById( 'fragmentShader' ).textContent
-        });
+        });*/
 
         var wallLeft = new THREE.Mesh(
-                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1), wallShader);
-        wallLeft.position.z = -diameterWalls*0.5;
+                new THREE.BoxGeometry(1, diameterWalls, diameterWalls, 1, 1, 1), wallShader);
+        wallLeft.position.x = -diameterWalls*0.5;
 
         var wallRight = new THREE.Mesh(
-                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1),
-                wallShader);
-        wallRight.position.z = diameterWalls*0.5;
-
-        var wallBack = new THREE.Mesh(
                 new THREE.BoxGeometry(1, diameterWalls, diameterWalls, 1, 1, 1),
                 wallShader);
-        wallBack.position.x = -diameterWalls*0.5;
+        wallRight.position.x = diameterWalls*0.5;
+
+        var wallBack = new THREE.Mesh(
+                new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1),
+                wallShader);
+        wallBack.position.z = -diameterWalls*0.5;
 
         var wallTop = new THREE.Mesh(
                 new THREE.BoxGeometry(diameterWalls, diameterWalls, 1, 1, 1, 1),
@@ -194,17 +224,58 @@
         wallBot.rotation.z = THREE.Math.degToRad(90);
         wallBot.position.y = -diameterWalls*0.5;
 
+        var sprite = THREE.ImageUtils.loadTexture( "discParticle.png" );
+        // create the particle variables
+        var particleCount = 800,
+                particles = new THREE.Geometry(),
+                pMaterial = new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, map: sprite, alphaTest: 0.5, transparent: true});
+
+        for (var p = 0; p < particleCount; p++) {
+
+            var pX = Math.seededRandom(-500, 500),
+                pY = Math.seededRandom(-500, 500),
+                pZ = Math.seededRandom(-500, 500);
+
+            particles.vertices.push(new THREE.Vector3(pX, pY, pZ));
+        }
+
+        var particleSystem = new THREE.Points(
+                particles,
+                pMaterial);
+
+        particleScene.add(particleSystem);
+
         var cube = new THREE.Mesh(
                 new THREE.BoxGeometry(10, 10, 10, 1, 1, 1),
-                reflectionShader);
+                new THREE.MeshBasicMaterial({color: new THREE.Color(0.3,0.3,0.3)}));
 
         if (demoMode) {
-            syncDevice.setConfig({'rocketXML':'cube.rocket'});
+            syncDevice.setConfig({'rocketXML':'Dice.rocket'});
             syncDevice.init("demo");
         } else {
-            //_syncDevice.setConfig({'socketURL':'ws://192.168.0.100:1338'});
             syncDevice.init();
         }
+
+        var sphColor = new THREE.Color(0.2, 0.2, 0.2);
+        var sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 32, 32),
+            new THREE.MeshBasicMaterial({ color: sphColor})
+        );
+
+        var circleGeometry = new THREE.CircleGeometry(1, 64);
+        circleGeometry.vertices.shift();
+        var circle = new THREE.Line(circleGeometry, new THREE.LineBasicMaterial({ color: sphColor.multiplyScalar(0.7), transparent: true }));
+
+    /*    var skySphere = new THREE.SphereGeometry(160, 32, 32);
+        var skyMaterial = new THREE.MeshLambertMaterial({
+            color: 0x333333,
+            side: THREE.CullFaceBack
+        });
+        var skyMesh = new THREE.Mesh(skySphere, skyMaterial);
+        skyMesh.position.y = 20;
+        scene.add(skyMesh);*/
+
+        scene.fog=new THREE.Fog( 0xffffff, 0.015, 215 );
 
         syncDevice.on('ready', onSyncReady);
         syncDevice.on('update', onSyncUpdate);
@@ -221,7 +292,11 @@
             dirY,
             mirrorX,
             mirrorY,
-            mirrorZ;
+            mirrorZ,
+            numCircleSpheresRock,
+            fade,
+            circleEffectRock,
+            wallEffectRock;
 
         function onSyncReady() {
             
@@ -236,6 +311,10 @@
             mirrorX = syncDevice.getTrack("mirrorX");
             mirrorY = syncDevice.getTrack("mirrorY");
             mirrorZ = syncDevice.getTrack("mirrorZ");
+            numCircleSpheresRock = syncDevice.getTrack("nCircles");
+            fade = syncDevice.getTrack("fade");
+            circleEffectRock = syncDevice.getTrack("cirFx");
+            wallEffectRock = syncDevice.getTrack("wallFx");
 
             prepareAudio();
         }
@@ -249,7 +328,8 @@
         }
         
         function onAudioReady() {
-            if(demoMode) { 
+            if(demoMode) {
+                isPlaying = true;
                 render();
                 audio.play();
             } else {
@@ -280,6 +360,8 @@
             audio.pause();
         }
 
+        var sphereCircles = new Array();
+        var cubes = new Array();
         function render() {
             if(isPlaying) {
                 row = audio.currentTime * ROW_RATE;
@@ -287,9 +369,15 @@
                 window.requestAnimationFrame(render);
             }
 
+            circleEffect = circleEffectRock.getValue(row) || false;
+            var rotCircles = wallEffectRock.getValue(row) || false;
+
             var time = audio.currentTime;
-            wallShader.uniforms.time.value = time;
-            wallShader.uniforms.dir.value = new THREE.Vector2(dirX.getValue(row), dirY.getValue(row));
+            //wallShader.uniforms.time.value = time;
+            //wallShader.uniforms.dir.value = new THREE.Vector2(dirX.getValue(row), dirY.getValue(row));
+
+            rgbShift.material.uniforms.amount.value = 0.005;
+            rgbShift.material.uniforms.angle.value = time*0.1;
 
             var rot = (cameraRotation.getValue(row) || 0) / 180 * Math.PI,
                 color = new THREE.Color();
@@ -297,22 +385,24 @@
             camera.fov = (fov.getValue(row) || FOV);
             camera.updateProjectionMatrix();
 
-            camera.position.x = Math.cos(rot) * (cameraDistance.getValue(row) || 0);
-            camera.position.z = Math.sin(rot) * (cameraDistance.getValue(row) || 0);
-            camera.lookAt(scene.position);
-
             color.setRGB((clearR.getValue(row) || 0) / 255,
                         (clearG.getValue(row) || 0) / 255,
                         (clearB.getValue(row) || 0) / 255);
             renderer.setClearColor(color);
 
-            if(wallEffect) {
+            /*if(wallEffect) {
                 scene.add(wallLeft);
                 scene.add(wallRight);
                 scene.add(wallBack);
                 scene.add(wallTop);
                 scene.add(wallBot);
-            }
+
+            }*/
+
+            cubeClapEffect = row >= 502;
+
+            var fadeAmount = fade.getValue(row) || 0;
+            colorCorrection.material.uniforms.mulRGB.value.set(1-fadeAmount,1-fadeAmount,1-fadeAmount);
 
             if(mirrorEffect) {
                 reflectionShader.uniforms.reflectionViewMatrix.value = camera.matrixWorldInverse;
@@ -321,11 +411,182 @@
                 cube.position.y = Math.sin(time)*10;
                 scene.add(cube);
             }
-            // Normal
+
+            if(circleEffect) {
+                numCircleSpheres = numCircleSpheresRock.getValue(row);
+                var startScale = 1.0;
+                if(rotCircles) {
+                    numCircleSpheres = 1;
+                    var curLength = sphereCircles.length;
+                    for(var i = 1;i < curLength;++i)
+                    {
+                        var shit = sphereCircles.pop();
+                        for(var j in shit.circles)
+                            scene.remove(shit.circles[j].circle);
+
+                        scene.remove(shit.sphere);
+                    }
+
+                    sphereCircles[0].sphere.position.set(0,0,0);
+
+                    for(var i in sphereCircles[0].circles)
+                    {
+                        sphereCircles[0].circles[i].circle.position.set(0,0,0);
+                    }
+                    //sphereCircles[0].sphere.position.set(0,0,0);
+
+                    startScale = 5.0;
+                    sphereCircles[0].sphere.scale.set(startScale, startScale, startScale);
+
+                    /*scene.add(wallLeft);
+                    scene.add(wallRight);
+                    scene.add(wallBack);
+                    scene.add(wallTop);
+                    scene.add(wallBot);*/
+                    rgbShift.enabled = true;
+                }
+                else
+                {
+                    rgbShift.enabled = false;
+                    /*scene.remove(wallLeft);
+                    scene.remove(wallRight);
+                    scene.remove(wallBack);
+                    scene.remove(wallTop);
+                    scene.remove(wallBot);*/
+                }
+
+                var mat = circle.material;
+                if(sphereCircles.length < numCircleSpheres)
+                {
+                    var curLength = sphereCircles.length;
+                    for(var i = 0;i < numCircleSpheres - curLength;++i)
+                    {
+                        var pos = new THREE.Vector3(Math.seededRandom(-30, 30), Math.seededRandom(-30, 30), 0);
+                        var coolSphere = sphere.clone();
+                        coolSphere.position.set(pos.x, pos.y, pos.z);
+                        var coolCircle = circle.clone();
+                        coolCircle.position.set(pos.x, pos.y, pos.z);
+                        coolCircle.material = mat.clone();
+
+                        scene.add(coolSphere);
+                        scene.add(coolCircle);
+                        sphereCircles.push({
+                            sphere: coolSphere,
+                            circles: new Array(
+                                    {
+                                        circle: coolCircle,
+                                        spawned: time
+                                    }),
+                            startTime: time,
+                            lastSpawnShit: time
+                        });
+                    }
+                }
+
+                for(var sph in sphereCircles)
+                {
+                    var s = sphereCircles[sph];
+                    for(var i = 0;i < s.circles.length;++i) {
+                        var life = (time - s.circles[i].spawned);
+                        if(life < 0)
+                            continue;
+
+                        var scale = life + startScale;
+                        var deadAt = 5;
+                        s.circles[i].circle.scale.set(scale, scale, scale);
+                        s.circles[i].circle.material.opacity = 1 - (life / deadAt);
+
+                        if(rotCircles) {
+                            var timeScale = mirrorX.getValue(row) || 0.1;
+                            s.circles[i].circle.rotation.x = time*timeScale+i;
+                            s.circles[i].circle.rotation.y = time*timeScale+i;
+                        }
+                    }
+
+                    var nextShit = rotCircles ? 0.5 : 2;
+                    if(time - s.lastSpawnShit > nextShit) {
+                        var newShit = s.circles[0].circle.clone();
+                        newShit.scale.set(1,1,1);
+                        newShit.material = mat.clone();
+                        scene.add(newShit);
+                        s.circles.push({circle: newShit, spawned: time });
+                        s.lastSpawnShit = time;
+                    }
+                }
+            }
+            else
+            {
+                var curLength = sphereCircles.length;
+                for(var i = 0;i < curLength;++i)
+                {
+                    var shit = sphereCircles.pop();
+                    for(var j in shit.circles)
+                        scene.remove(shit.circles[j].circle);
+
+                    scene.remove(shit.sphere);
+                }
+            }
+
+            if(cubeClapEffect)
+            {
+                var timeScale = 2 * Math.PI;
+                var period = (2 * Math.PI) / timeScale;
+
+                if(camera.position.y < 200)
+                    camera.position.y += 0.25;
+
+                if(cubes.length == 0 || period < (time - cubes[cubes.length-1].spawned))
+                {
+                    var cubeOne = cube.clone();
+                    cubes.push({cube: cubeOne, spawned: time});
+                    scene.add(cubeOne);
+
+                    var cubeTwo = cube.clone();
+                    cubes.push({cube: cubeTwo, spawned: time});
+                    scene.add(cubeTwo);
+
+                    var cube3 = cube.clone();
+                    cubes.push({cube: cube3, spawned: time});
+                    scene.add(cube3);
+
+                    var cube4 = cube.clone();
+                    cubes.push({cube: cube4, spawned: time});
+                    scene.add(cube4);
+
+                    var groupId = ((cubes.length / 4));
+                    cubeOne.position.y = ((cubes.length / 4) - 1) * 10;
+                    cubeTwo.position.y = ((cubes.length / 4) - 1) * 10;
+                    cube3.position.y = ((cubes.length / 4) - 1) * 10;
+                    cube4.position.y = ((cubes.length / 4) - 1) * 10;
+
+                    /*var nScale = (1 / (groupId * 0.5));
+                    cubes[cubeId].cube.scale.set(nScale, nScale, nScale);*/
+                }
+
+                for(var cubeId in cubes)
+                {
+                    var rightSide = cubeId % 4;
+
+                    if(rightSide < 2) {
+                        cubes[cubeId].cube.position.x = rightSide == 1 ? Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) * 10 + 15
+                                : -10 * Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) - 15;
+                    }
+                    else {
+                        cubes[cubeId].cube.position.z = rightSide == 3 ? Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) * 10 + 15
+                                : -10 * Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) - 15;
+                    }
+                }
+            }
+
+            camera.position.x = Math.cos(rot) * (cameraDistance.getValue(row) || 0);
+            camera.position.z = Math.sin(rot) * (cameraDistance.getValue(row) || 0);
+            camera.lookAt(scene.position);
+
             renderer.clear();
             composer.render(scene, camera);
+            renderer.clearDepth();
+            renderer.render(particleScene, camera);
 
-            // Mirroring
             /*if(mirrorEffect) {
                 var reflMat = new THREE.Matrix4();
 
@@ -340,14 +601,8 @@
                 reflectionShader.uniforms.reflectionViewMatrix.value = reflMat.getInverse(reflMat.multiply(camera.matrixWorld));
 
                 renderer.setFaceCulling(THREE.CullFaceNone);
-                renderer.autoClearColor = false;
-                renderer.autoClearDepth = false;
 
                 renderer.render(scene, camera);
-
-                //renderer.setFaceCulling(THREE.CullFaceBack);
-                renderer.autoClearColor = true;
-                renderer.autoClearDepth = true;
             }*/
         }
     }());
