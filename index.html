@@ -128,7 +128,7 @@
             ROWS_PER_BEAT = 4,
             ROW_RATE = BPM / 60 * ROWS_PER_BEAT;
 
-        var demoMode = false, //Set to true for preview
+        var demoMode = true, //Set to true for preview
             syncDevice = new JSRocket.SyncDevice(),
             row = 0;
 
@@ -161,6 +161,9 @@
         composer.addPass(rgbShift);
         composer.addPass(colorCorrection);
         composer.addPass(copyPass);
+
+        var byTexture = THREE.ImageUtils.loadTexture( "By.png" );
+        var diceTexture = THREE.ImageUtils.loadTexture("Dice.png");
 
         var vertexShaderSrc = document.getElementById( 'vertexShader' ).textContent;
         var fragShaderSrc = document.getElementById( 'fragmentShader' ).textContent;
@@ -256,7 +259,7 @@
             syncDevice.init();
         }
 
-        var sphColor = new THREE.Color(0.2, 0.2, 0.2);
+        var sphColor = new THREE.Color(0.4, 0.4, 0.4);
         var sphere = new THREE.Mesh(
             new THREE.SphereGeometry(1, 32, 32),
             new THREE.MeshBasicMaterial({ color: sphColor})
@@ -320,14 +323,21 @@
         }
 
         function prepareAudio() {
-            audio.src = "december.mp3";
+            audio.src = "foo.mp3";
             audio.load();
             audio.preload = true;
             audio.addEventListener('canplay', onAudioReady);
             document.body.appendChild(audio);
         }
-        
+
+        var isPlaying = false;
+        var doneBefore = false;
+
         function onAudioReady() {
+            if(doneBefore)
+                return;
+
+            doneBefore = true;
             if(demoMode) {
                 isPlaying = true;
                 render();
@@ -347,7 +357,6 @@
             render();
         }
 
-        var isPlaying = false;
         function onPlay() {
             isPlaying = true;
             audio.play();
@@ -362,7 +371,26 @@
 
         var sphereCircles = new Array();
         var cubes = new Array();
+        var fuckStartTime = 0;
+        var doneShit = false;
+        var doneMoreShit = false;
+        var diceText;
+        var byText;
+        var cubeEffectStartTime = 0;
+        var doneThatShit = false;
+
         function render() {
+            if(row > 1200)
+            {
+                var isNegative = 1 - ((row - 1200) / (1225-1200));
+                if(isNegative < 0) {
+                    renderer.clear();
+                    audio.pause();
+                    return;
+                }
+                audio.volume = 1 - ((row - 1200) / (1225-1200));
+            }
+
             if(isPlaying) {
                 row = audio.currentTime * ROW_RATE;
                 syncDevice.update(row);
@@ -383,6 +411,8 @@
                 color = new THREE.Color();
 
             camera.fov = (fov.getValue(row) || FOV);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
 
             color.setRGB((clearR.getValue(row) || 0) / 255,
@@ -399,7 +429,7 @@
 
             }*/
 
-            cubeClapEffect = row >= 502;
+            cubeClapEffect = row >= 502 && row < 749;
 
             var fadeAmount = fade.getValue(row) || 0;
             colorCorrection.material.uniforms.mulRGB.value.set(1-fadeAmount,1-fadeAmount,1-fadeAmount);
@@ -438,6 +468,10 @@
                     startScale = 5.0;
                     sphereCircles[0].sphere.scale.set(startScale, startScale, startScale);
 
+                    if(fuckStartTime == 0)
+                        fuckStartTime = time;
+
+                    rot = THREE.Math.degToRad(90) + (time - fuckStartTime)*0.3;
                     /*scene.add(wallLeft);
                     scene.add(wallRight);
                     scene.add(wallBack);
@@ -532,6 +566,11 @@
                 var timeScale = 2 * Math.PI;
                 var period = (2 * Math.PI) / timeScale;
 
+                if(cubeEffectStartTime == 0)
+                    cubeEffectStartTime = time;
+
+                rot += (cubeEffectStartTime - time) * 0.1;
+
                 if(camera.position.y < 200)
                     camera.position.y += 0.25;
 
@@ -576,6 +615,224 @@
                                 : -10 * Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) - 15;
                     }
                 }
+            }
+
+            if(row > 749 && row < 780)
+            {
+                if(!doneShit)
+                {
+                    for(var cubeId in cubes)
+                    {
+                        scene.remove(cubes[cubeId].cube);
+                    }
+
+                    camera.position.y = 0;
+
+                    diceText = new THREE.Mesh(new THREE.PlaneBufferGeometry( 20, 20 ),
+                            new THREE.MeshBasicMaterial({ color: new THREE.Color(1,1,1), map: diceTexture, transparent: true}));
+                    scene.add(diceText);
+                    doneShit = true;
+                    rgbShift.enabled = false;
+                }
+
+                /*if(row > 768 && !doneMoreShit)
+                {
+                    scene.remove(diceText);
+                    byText = new THREE.Mesh(new THREE.PlaneBufferGeometry( 50, 50 ),
+                            new THREE.MeshBasicMaterial({ color: new THREE.Color(1,1,1), map: byTexture, transparent: true}));
+                    scene.add(byText);
+                    doneMoreShit = true;
+                }
+*/
+                if(row > 779)
+                {
+                    rgbShift.enabled = true;
+                    scene.remove(diceText);
+                 //   scene.remove(byText);
+                }
+            }
+
+            if(row > 779)
+            {
+                numCircleSpheres = numCircleSpheresRock.getValue(row);
+                var startScale = 1.0;
+                if(rotCircles) {
+                    numCircleSpheres = 1;
+                    var curLength = sphereCircles.length;
+                    for(var i = 1;i < curLength;++i)
+                    {
+                        var shit = sphereCircles.pop();
+                        for(var j in shit.circles)
+                            scene.remove(shit.circles[j].circle);
+
+                        scene.remove(shit.sphere);
+                    }
+
+                    sphereCircles[0].sphere.position.set(0,0,0);
+
+                    for(var i in sphereCircles[0].circles)
+                    {
+                        sphereCircles[0].circles[i].circle.position.set(0,0,0);
+                    }
+                    //sphereCircles[0].sphere.position.set(0,0,0);
+
+                    startScale = 5.0;
+                    sphereCircles[0].sphere.scale.set(startScale, startScale, startScale);
+
+                    if(fuckStartTime == 0)
+                        fuckStartTime = time;
+
+                    rot = THREE.Math.degToRad(90) + (time - fuckStartTime)*0.3;
+                    /*scene.add(wallLeft);
+                     scene.add(wallRight);
+                     scene.add(wallBack);
+                     scene.add(wallTop);
+                     scene.add(wallBot);*/
+                    rgbShift.enabled = true;
+                }
+                else
+                {
+                    rgbShift.enabled = false;
+                    /*scene.remove(wallLeft);
+                     scene.remove(wallRight);
+                     scene.remove(wallBack);
+                     scene.remove(wallTop);
+                     scene.remove(wallBot);*/
+                }
+
+                var mat = circle.material;
+                if(sphereCircles.length < numCircleSpheres)
+                {
+                    var curLength = sphereCircles.length;
+                    for(var i = 0;i < numCircleSpheres - curLength;++i)
+                    {
+                        var pos = new THREE.Vector3(Math.seededRandom(-30, 30), Math.seededRandom(-30, 30), 0);
+                        var coolSphere = sphere.clone();
+                        coolSphere.position.set(pos.x, pos.y, pos.z);
+                        var coolCircle = circle.clone();
+                        coolCircle.position.set(pos.x, pos.y, pos.z);
+                        coolCircle.material = mat.clone();
+
+                        scene.add(coolSphere);
+                        scene.add(coolCircle);
+                        sphereCircles.push({
+                            sphere: coolSphere,
+                            circles: new Array(
+                                    {
+                                        circle: coolCircle,
+                                        spawned: time
+                                    }),
+                            startTime: time,
+                            lastSpawnShit: time
+                        });
+                    }
+                }
+
+                for(var sph in sphereCircles)
+                {
+                    var s = sphereCircles[sph];
+                    for(var i = 0;i < s.circles.length;++i) {
+                        var life = (time - s.circles[i].spawned);
+                        if(life < 0)
+                            continue;
+
+                        var scale = life + startScale;
+                        var deadAt = 5;
+                        s.circles[i].circle.scale.set(scale, scale, scale);
+                        s.circles[i].circle.material.opacity = 1 - (life / deadAt);
+
+                        if(rotCircles) {
+                            var timeScale = mirrorX.getValue(row) || 0.1;
+                            s.circles[i].circle.rotation.x = time*timeScale+i;
+                            s.circles[i].circle.rotation.y = time*timeScale+i;
+                        }
+                    }
+
+                    var nextShit = rotCircles ? 0.5 : 2;
+                    if(time - s.lastSpawnShit > nextShit) {
+                        var newShit = s.circles[0].circle.clone();
+                        newShit.scale.set(1,1,1);
+                        newShit.material = mat.clone();
+                        scene.add(newShit);
+                        s.circles.push({circle: newShit, spawned: time });
+                        s.lastSpawnShit = time;
+                    }
+                }
+              /* */
+            }
+            else if(!circleEffect)
+            {
+                var curLength = sphereCircles.length;
+                for(var i = 0;i < curLength;++i)
+                {
+                    var shit = sphereCircles.pop();
+                    for(var j in shit.circles)
+                        scene.remove(shit.circles[j].circle);
+
+                    scene.remove(shit.sphere);
+                }
+            }
+
+            if(row > 1002)
+            {
+                if(!doneThatShit)
+                {
+                    for(var i in cubes)
+                    {
+                        scene.remove(cubes[i].cube)
+                    }
+                    cubes = new Array();
+                    doneThatShit = true;
+                }
+
+                var timeScale = 2 * Math.PI;
+                var period = (2 * Math.PI) / timeScale;
+
+                if(camera.position.y < 200)
+                    camera.position.y += 0.25;
+
+                if(cubes.length == 0 || period < (time - cubes[cubes.length-1].spawned))
+                {
+                    var cubeOne = cube.clone();
+                    cubes.push({cube: cubeOne, spawned: time});
+                    scene.add(cubeOne);
+
+                    var cubeTwo = cube.clone();
+                    cubes.push({cube: cubeTwo, spawned: time});
+                    scene.add(cubeTwo);
+
+                    var cube3 = cube.clone();
+                    cubes.push({cube: cube3, spawned: time});
+                    scene.add(cube3);
+
+                    var cube4 = cube.clone();
+                    cubes.push({cube: cube4, spawned: time});
+                    scene.add(cube4);
+
+                    var groupId = ((cubes.length / 4));
+                    cubeOne.position.y = ((cubes.length / 4) - 1) * 10;
+                    cubeTwo.position.y = ((cubes.length / 4) - 1) * 10;
+                    cube3.position.y = ((cubes.length / 4) - 1) * 10;
+                    cube4.position.y = ((cubes.length / 4) - 1) * 10;
+
+                    /*var nScale = (1 / (groupId * 0.5));
+                        cubes[cubeId].cube.scale.set(nScale, nScale, nScale);*/
+
+                    }
+
+                     for(var cubeId in cubes)
+                     {
+                        var rightSide = cubeId % 4;
+
+                        if(rightSide < 2) {
+                         cubes[cubeId].cube.position.y = rightSide == 1 ? Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) * 10 + 15
+                         : -10 * Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) - 15;
+                         }
+                         else {
+                         cubes[cubeId].cube.position.x = rightSide == 3 ? Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) * 10 + 15
+                         : -10 * Math.sin(-(time - cubes[cubeId].spawned) * timeScale - Math.PI * 0.5) - 15;
+                         }
+                     }
             }
 
             camera.position.x = Math.cos(rot) * (cameraDistance.getValue(row) || 0);

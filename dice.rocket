@@ -3,69 +3,76 @@
 		<track name="clearR"/>
 		<track name="clearG"/>
 		<track name="clearB">
-			<key value="20" interpolation="0" row="0"/>
+			<key row="0" value="20" interpolation="0"/>
 		</track>
 		<track name="rotation">
-			<key value="90" interpolation="0" row="0"/>
+			<key row="0" value="90" interpolation="0"/>
 		</track>
 		<track name="distance">
-			<key value="40" interpolation="1" row="0"/>
-			<key value="70" interpolation="1" row="16"/>
-			<key value="100" interpolation="0" row="248"/>
-			<key value="20" interpolation="1" row="249"/>
-			<key value="50" interpolation="1" row="498"/>
-			<key value="80" interpolation="0" row="671"/>
+			<key row="0" value="40" interpolation="1"/>
+			<key row="16" value="70" interpolation="1"/>
+			<key row="248" value="100" interpolation="0"/>
+			<key row="249" value="20" interpolation="1"/>
+			<key row="498" value="50" interpolation="1"/>
+			<key row="671" value="80" interpolation="0"/>
+			<key row="779" value="15" interpolation="0"/>
 		</track>
 		<track name="nCircles">
-			<key value="1" interpolation="0" row="0"/>
-			<key value="2" interpolation="0" row="22"/>
-			<key value="3" interpolation="0" row="30"/>
-			<key value="4" interpolation="0" row="62"/>
-			<key value="5" interpolation="0" row="86"/>
-			<key value="6" interpolation="0" row="94"/>
-			<key value="7" interpolation="0" row="125"/>
-			<key value="8" interpolation="0" row="148"/>
-			<key value="9" interpolation="0" row="156"/>
-			<key value="10" interpolation="0" row="187"/>
-			<key value="11" interpolation="0" row="211"/>
-			<key value="12" interpolation="0" row="219"/>
+			<key row="0" value="1" interpolation="0"/>
+			<key row="22" value="2" interpolation="0"/>
+			<key row="30" value="3" interpolation="0"/>
+			<key row="62" value="4" interpolation="0"/>
+			<key row="86" value="5" interpolation="0"/>
+			<key row="94" value="6" interpolation="0"/>
+			<key row="125" value="7" interpolation="0"/>
+			<key row="148" value="8" interpolation="0"/>
+			<key row="156" value="9" interpolation="0"/>
+			<key row="187" value="10" interpolation="0"/>
+			<key row="211" value="11" interpolation="0"/>
+			<key row="219" value="12" interpolation="0"/>
+			<key row="779" value="1" interpolation="0"/>
 		</track>
 		<track name="FOV">
-			<key value="50" interpolation="0" row="0"/>
-			<key value="50" interpolation="1" row="249"/>
-			<key value="80" interpolation="0" row="312"/>
+			<key row="0" value="50" interpolation="0"/>
+			<key row="249" value="50" interpolation="1"/>
+			<key row="312" value="80" interpolation="0"/>
 		</track>
 		<track name="dirX">
-			<key value="0.5" interpolation="1" row="261"/>
-			<key value="1" interpolation="1" row="272"/>
-			<key value="0.5" interpolation="0" row="280"/>
-			<key value="0.3" interpolation="1" row="308"/>
-			<key value="0" interpolation="0" row="312"/>
+			<key row="261" value="0.5" interpolation="1"/>
+			<key row="272" value="1" interpolation="1"/>
+			<key row="280" value="0.5" interpolation="0"/>
+			<key row="308" value="0.3" interpolation="1"/>
+			<key row="312" value="0" interpolation="0"/>
 		</track>
 		<track name="dirY">
-			<key value="0" interpolation="1" row="308"/>
-			<key value="0.3" interpolation="0" row="312"/>
+			<key row="308" value="0" interpolation="1"/>
+			<key row="312" value="0.3" interpolation="0"/>
 		</track>
 		<track name="mirrorX">
-			<key value="4" interpolation="0" row="498"/>
+			<key row="498" value="4" interpolation="0"/>
 		</track>
 		<track name="mirrorY"/>
 		<track name="mirrorZ"/>
 		<track name="fade">
-			<key value="1" interpolation="1" row="0"/>
-			<key value="0" interpolation="0" row="2"/>
-			<key value="0" interpolation="1" row="245"/>
-			<key value="1" interpolation="0" row="248"/>
-			<key value="0" interpolation="0" row="249"/>
-			<key value="1" interpolation="1" row="498"/>
-			<key value="0" interpolation="0" row="503"/>
+			<key row="0" value="1" interpolation="1"/>
+			<key row="2" value="0" interpolation="0"/>
+			<key row="245" value="0" interpolation="1"/>
+			<key row="248" value="1" interpolation="0"/>
+			<key row="249" value="0" interpolation="0"/>
+			<key row="498" value="1" interpolation="1"/>
+			<key row="503" value="0" interpolation="0"/>
 		</track>
 		<track name="cirFx">
-			<key value="1" interpolation="0" row="0"/>
-			<key value="0" interpolation="0" row="498"/>
+			<key row="0" value="1" interpolation="0"/>
+			<key row="498" value="0" interpolation="0"/>
+			<key row="779" value="0" interpolation="0"/>
+			<key row="780" value="1" interpolation="0"/>
 		</track>
 		<track name="wallFx">
-			<key value="1" interpolation="0" row="249"/>
+			<key row="249" value="1" interpolation="0"/>
+			<key row="749" value="0" interpolation="0"/>
+			<key row="779" value="0" interpolation="0"/>
+			<key row="780" value="1" interpolation="0"/>
 		</track>
 	</tracks>
 	<bookmarks>
